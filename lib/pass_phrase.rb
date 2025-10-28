@@ -81,7 +81,7 @@ module PassPhrase
       wordfile = options.fetch(:wordfile) # This is guaranteed by validate_options
       min_length = options.fetch(:min_length, 0)
       max_length = options.fetch(:max_length, 20)
-      valid_chars = options.fetch(:valid_chars, '.')
+      valid_chars = options.fetch(:valid_chars, 'a-zA-Z')
       make_leet = options.fetch(:make_leet, false)
       make_mini_leet = options.fetch(:make_mini_leet, false)
 
