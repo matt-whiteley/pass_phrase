@@ -8,7 +8,7 @@ module PassPhrase
 
   # This finds the root directory of the gem and builds a path
   def self.gem_datapath(filename)
-    File.expand_path(File.join(__dir__, 'data', filename))
+    File.expand_path(File.join(__dir__, 'pass_phrase', 'data', filename))
   end
 
   # A map of 'geek' letters for leet-speak
