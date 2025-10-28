@@ -6,6 +6,15 @@ require 'set'
 module PassPhrase
   class Error < StandardError; end
 
+  # This finds the root directory of the gem and builds a path
+  def self.gem_datapath(filename)
+    # File.expand_path takes a path relative to the __dir__ (current file's dir)
+    # __dir__ is /.../pass_phrase-0.1.0/lib/pass_phrase
+    # ../../ gives /.../pass_phrase-0.1.0/
+    # Then we append 'data/pass_phrase' and the filename
+    File.expand_path(File.join(__dir__, '..', '..', 'data', 'pass_phrase', filename))
+  end
+
   # A map of 'geek' letters for leet-speak
   LEET_LETTERS = {
     "a" => ["4", "@"], "b" => ["8"], "c" => ["("], "e" => ["3"],
@@ -21,9 +30,59 @@ module PassPhrase
   }.freeze
 
   class Generator
+    # This is the entry point.
+    # It accepts an options hash, validates it, loads the
+    # necessary files, and returns the generated passphrases.
+    def self.passphrase(options = {})
+      # 1. Validate options and populate defaults (mutates options hash)
+      validate_options(options)
+
+      # 2. Load wordlists based on options
+      adj_opts = options.merge(wordfile: options[:adjectives])
+      noun_opts = options.merge(wordfile: options[:nouns])
+      verb_opts = options.merge(wordfile: options[:verbs])
+      
+      adjectives = generate_wordlist(adj_opts)
+      nouns = generate_wordlist(noun_opts)
+      verbs = generate_wordlist(verb_opts)
+
+      # 3. Run verbose report if requested
+      if options[:verbose]
+        verbose_reports(adjectives: adjectives, nouns: nouns, verbs: verbs, options: options)
+      end
+
+      # 4. Generate the phrases
+      separator = options.fetch(:separator, ' ')
+      num = options.fetch(:num, 1)
+      uppercase = options.fetch(:uppercase, false)
+      lowercase = options.fetch(:lowercase, false)
+      capitalise = options.fetch(:capitalise, false)
+      random = options.fetch(:random, Random.new)
+
+      phrases = []
+      num.times do
+        phrase = generate_passphrase_internal(adjectives, nouns, verbs, separator: separator, random: random)
+        
+        if capitalise
+          phrase = phrase.split(separator).map(&:capitalize).join(separator)
+        end
+        phrases << phrase
+      end
+      
+      all_phrases = phrases.join("\n")
+
+      if uppercase
+        all_phrases.upcase!
+      elsif lowercase
+        all_phrases.downcase!
+      end
+      
+      all_phrases
+    end
+
     # Generate a word list from a file
     def self.generate_wordlist(options = {})
-      wordfile = options.fetch(:wordfile)
+      wordfile = options.fetch(:wordfile) # This is guaranteed by validate_options
       min_length = options.fetch(:min_length, 0)
       max_length = options.fetch(:max_length, 20)
       valid_chars = options.fetch(:valid_chars, '.')
@@ -31,7 +90,6 @@ module PassPhrase
       make_mini_leet = options.fetch(:make_mini_leet, false)
 
       words = []
-      # Build a regex to match word constraints
       regexp = Regexp.new("^[#{valid_chars}]{#{min_length},#{max_length}}$")
       
       begin
@@ -59,43 +117,14 @@ module PassPhrase
       words
     end
 
-    # Generate the final passphrases
-    def self.passphrase(adjectives, nouns, verbs, options = {})
-      separator = options.fetch(:separator, ' ')
-      num = options.fetch(:num, 1)
-      uppercase = options.fetch(:uppercase, false)
-      lowercase = options.fetch(:lowercase, false)
-      capitalise = options.fetch(:capitalise, false)
-
-      phrases = []
-      num.times do
-        phrase = generate_passphrase(adjectives, nouns, verbs, separator)
-        
-        if capitalise
-          phrase = phrase.split(separator).map(&:capitalize).join(separator)
-        end
-        phrases << phrase
-      end
-      
-      all_phrases = phrases.join("\n")
-
-      if uppercase
-        all_phrases.upcase!
-      elsif lowercase
-        all_phrases.downcase!
-      end
-      
-      all_phrases
-    end
-
     # Generate a single adjective-noun-verb-adjective-noun phrase
-    def self.generate_passphrase(adjectives, nouns, verbs, separator)
+    def self.generate_passphrase_internal(adjectives, nouns, verbs, separator:, random:)
       [
-        adjectives.sample,
-        nouns.sample,
-        verbs.sample,
-        adjectives.sample,
-        nouns.sample
+        adjectives.sample(1, random: random).first,
+        nouns.sample(1, random: random).first,
+        verbs.sample(1, random: random).first,
+        adjectives.sample(1, random: random).first,
+        nouns.sample(1, random: random).first
       ].join(separator)
     end
 
@@ -133,39 +162,31 @@ module PassPhrase
 
     # --- Validation and Reporting ---
 
-    def self.validate_options(options, args)
-      if options[:num] <= 0
+    def self.validate_options(options)
+      if options.fetch(:num, 1) <= 0
         raise PassPhrase::Error, "Little point running the script if you " \
                                  "don't generate even a single passphrase."
       end
 
-      if options[:max_length] < options[:min_length]
+      if options.fetch(:max_length, 20) < options.fetch(:min_length, 0)
         raise PassPhrase::Error, "The maximum length of a word can not be " \
                                  "lesser then minimum length."
       end
 
-      unless args.empty?
-        raise PassPhrase::Error, "Error: Too many arguments."
-      end
-
       # Check for word files
       [:adjectives, :nouns, :verbs].each do |word_type|
+        # 1. If the user did NOT provide a file path, use the gem's default
         if options[word_type].nil?
-          # If no file is specified, check common locations
-          found = false
-          ["#{word_type}.txt", "~/.pass-phrase/#{word_type}.txt"].each do |loc|
-            if File.exist?(File.expand_path(loc))
-              options[word_type] = loc
-              found = true
-              break
-            end
-          end
-          
-          if !found
-            raise PassPhrase::Error, "Could not find #{word_type} word file, or word file does not exist."
-          end
-        elsif !File.exist?(File.expand_path(options[word_type]))
-          raise PassPhrase::Error, "Could not open the specified #{word_type} word file."
+          default_path = PassPhrase.gem_datapath("#{word_type}.txt")
+          options[word_type] = default_path
+        else
+        # 2. If the user DID provide a path, expand it
+          options[word_type] = File.expand_path(options[word_type])
+        end
+
+        # 3. Now, check if the chosen file (default or custom) actually exists
+        unless File.exist?(options[word_type])
+          raise PassPhrase::Error, "Error: Could not find #{word_type} word file at: #{options[word_type]}"
         end
       end
     end

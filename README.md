@@ -1,123 +1,52 @@
 # PassPhrase (Ruby)
 
-<!-- Add other badges here: e.g., CI/CD, Code Coverage -->
+Generates memorable passphrases based on the 'adjective-noun-verb-adjective-noun' pattern, such as `silly-monkey-eats-fast-banana`.
 
-Generates memorable passphrases based on the 'adjective-noun-verb-adjective-noun' pattern.
+This gem comes bundled with default wordlists for adjectives, nouns, and verbs, making it easy to get started with zero configuration.
 
-Example: silly-monkey-eats-fast-banana
-
-This project is a Ruby port of the original Python Pass-phrase project by Aaron Bassett.
+This project is a Ruby port of the original Python [Pass-phrase](https://github.com/aaronbassett/Pass-phrase) project by Aaron Bassett.
 
 ## Installation
+Add this line to your application's `Gemfile`:
 
-Add this line to your application's Gemfile:
-
-`gem 'pass_phrase'`
-
+```ruby
+gem 'pass_phrase'
+```
 
 And then execute:
-
-`$ bundle install`
-
+```bash
+$ bundle install
+```
 
 Or install it yourself as:
-
-`$ gem install pass_phrase`
-
-
-You can also build and install it locally from the source:
-
 ```bash
-$ gem build pass_phrase.gemspec
-$ gem install ./pass_phrase-*.gem
+$ gem install pass_phrase
 ```
 
+## Library Usage
+This gem is designed to be used as a library within your Ruby projects.
 
-## Usage
+The main entry point is the `PassPhrase::Generator.passphrase(options = {})` method. It accepts a single hash of options and returns a string of one or more passphrases.
 
-This gem can be used in two ways: as a command-line tool or as a library within another Ruby project.
+The library raises a `PassPhrase::Error` if it encounters a problem (e.g., a custom wordlist file is not found), allowing your application to handle failures gracefully.
 
-### 1. As a Command-Line Tool
-
-The pass_phrase executable allows you to generate passphrases directly from your terminal.
-
-#### Prerequisite: Wordlists
-
-This tool requires wordlists to function. You must provide your own text files for adjectives, nouns, and verbs (one word per line).
-
-For example, create three files: adjectives.txt, nouns.txt, and verbs.txt.
-
-#### Basic Usage:
-
-```bash
-$ pass_phrase --adjectives adjectives.txt --nouns nouns.txt --verbs verbs.txt
-
-# Example Output:
-# official monkey finds quick banana
-```
-
-#### Options and Customization:
-
-You can generate multiple passphrases, change the separator, apply "leet" speak, and more.
-
-```bash
-# Generate 5 passphrases with a hyphen separator,
-# with each word capitalized, and using "l33tish" text.
-$ pass_phrase -n 5 -s "-" -C --l33tish \
-    --adjectives adjectives.txt \
-    --nouns nouns.txt \
-    --verbs verbs.txt
-
-# Example Output:
-# 0ff1c14l-M0nk3y-F1nd5-Qu1ck-B4n4n4
-# Gr347-D0nkey-Jumps-Sl0w-L1z4rd
-# H4ppy-C47-S1ng5-L0ud-D0g
-# F4s7-Turtl3-Sl33p5-5m4r7-F0x
-# S1lly-R4bb17-W4lk5-B1g-P1g
-```
-
-#### Get Help:
-
-For a full list of commands, use the help flag:
-
-`$ pass_phrase --help`
-
-
-### 2. As a Library
-
-You can integrate PassPhrase into any Ruby project. The library raises a PassPhrase::Error if it encounters a problem (like a missing file or invalid options), which allows your application to handle failures gracefully.
-
-#### Basic Example:
+### Basic Example (Using Default Wordlists)
+By default, the gem will use its own bundled wordlists. You only need to provide options for formatting.
 
 ```ruby
 require 'pass_phrase'
 
-# 1. Define your wordlist paths
-adj_file = 'path/to/adjectives.txt'
-noun_file = 'path/to/nouns.txt'
-verb_file = 'path/to/verbs.txt'
-
-# 2. Define your options as a Hash
+# 1. Define your options as a Hash
+#    (No file paths are needed)
 options = {
   num: 3,
   separator: '_',
-  capitalise: true,
-  make_mini_leet: false
+  capitalise: true
 }
 
 begin
-  # 3. Load the wordlists
-  adjectives = PassPhrase::Generator.generate_wordlist(wordfile: adj_file)
-  nouns = PassPhrase::Generator.generate_wordlist(wordfile: noun_file)
-  verbs = PassPhrase::Generator.generate_wordlist(wordfile: verb_file)
-
-  # 4. Generate the passphrases
-  phrases = PassPhrase::Generator.passphrase(
-    adjectives,
-    nouns,
-    verbs,
-    options
-  )
+  # 2. Generate the passphrases
+  phrases = PassPhrase::Generator.passphrase(options)
   
   puts "Your new passphrases:"
   puts phrases
@@ -128,9 +57,37 @@ rescue PassPhrase::Error => e
 end
 ```
 
-#### Using Helper Methods:
+### Advanced Example (Overriding Wordlists & Options)
+To use your own custom wordlists, simply pass their file paths in the options hash. You can also mix in other options like l33t speak or word length constraints.
 
-You can also use the helper methods directly if needed:
+```ruby
+require 'pass_phrase'
+
+options = {
+  num: 2,
+  separator: ' ',
+  
+  # --- Custom Wordlists ---
+  adjectives: 'path/to/my_adjectives.txt',
+  nouns: 'path/to/my_nouns.txt',
+  verbs: 'path/to/my_verbs.txt',
+  
+  # --- Other Options ---
+  min_length: 4,      # Only use words 4 characters or longer
+  make_leet: true     # Apply full 'l33t' speak
+}
+
+begin
+  phrases = PassPhrase::Generator.passphrase(options)
+  puts phrases
+
+rescue PassPhrase::Error => e
+  puts "Error: #{e.message}"
+end
+```
+
+### Using Helper Methods
+The generator's helper methods are also public and can be used individually if needed.
 
 ```ruby
 # Convert a word to leet speak
@@ -141,29 +98,28 @@ leet_word = PassPhrase::Generator.leet("super secret")
 mini_leet_word = PassPhrase::Generator.mini_leet("admin password")
 # => "4dm1n p455w0rd"
 
-# Estimate cracking time
+# Estimate cracking time (at 1,000 guesses/sec)
 time = PassPhrase::Generator.cracking_time(500_000_000)
 # => "about 15 years"
 ```
 
 ## Development
-
 After checking out the repo, run `bundle install` to install dependencies.
 
 To build the gem locally, run:
 
-`$ gem build pass_phrase.gemspec`
-
+```bash
+$ gem build pass_phrase.gemspec
+```
 
 To install it onto your local machine, run:
 
-`$ gem install ./pass_phrase-VERSION.gem`
-
+```bash
+$ gem install ./pass_phrase-VERSION.gem
+```
 
 ## Contributing
-
-Bug reports and pull requests are welcome on GitHub at https/github.com/matt-whiteley/pass_phrase.
+Bug reports and pull requests are welcome on GitHub at https://github.com/matt-whiteley/pass_phrase.
 
 ## License
-
-The gem is available as open source under the terms of the MIT License.
+The gem is available as open source under the terms of the [MIT License](https://github.com/matt-whiteley/pass_phrase/LICENSE.txt).
